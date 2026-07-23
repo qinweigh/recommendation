@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSSM 模型架构图 - torch-rechub</title>
+<style>
+  :root {
+    --user-color: #2563eb;
+    --user-bg: #eff6ff;
+    --user-border: #93c5fd;
+    --item-color: #059669;
+    --item-bg: #ecfdf5;
+    --item-border: #6ee7b7;
+    --match-color: #7c3aed;
+    --match-bg: #f5f3ff;
+    --match-border: #c4b5fd;
+    --embed-color: #d97706;
+    --embed-bg: #fffbeb;
+    --embed-border: #fcd34d;
+    --norm-color: #be185d;
+    --norm-bg: #fdf2f8;
+    --norm-border: #f9a8d4;
+    --input-color: #475569;
+    --input-bg: #f1f5f9;
+    --input-border: #cbd5e1;
+    --text: #1e293b;
+    --muted: #64748b;
+    --bg: #f8fafc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 32px 20px;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 {
+    font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+  }
+  header .subtitle {
+    font-size: 14px; color: var(--muted);
+  }
+  header .source {
+    font-size: 12px; color: var(--muted); margin-top: 6px;
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+  }
+
+  /* ===== 架构图主区域 ===== */
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-bottom: 40px;
+  }
+  .tower {
+    background: #fff;
+    border-radius: 14px;
+    padding: 22px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    border: 1px solid #e2e8f0;
+  }
+  .tower-title {
+    text-align: center;
+    font-size: 17px;
+    font-weight: 700;
+    padding: 10px 0;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    color: #fff;
+  }
+  .tower.user .tower-title { background: var(--user-color); }
+  .tower.item .tower-title { background: var(--item-color); }
+
+  /* 每一个"层"卡片 */
+  .layer {
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0 auto 6px;
+    max-width: 420px;
+    border: 1.5px solid;
+    position: relative;
+  }
+  .layer .layer-name {
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .layer .layer-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.45;
+  }
+  .layer .dim {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.7);
+    white-space: nowrap;
+  }
+
+  /* 各类型层配色 */
+  .layer.input  { background: var(--input-bg);  border-color: var(--input-border);  }
+  .layer.input  .layer-name { color: var(--input-color); }
+  .layer.input  .dim { color: var(--input-color); }
+
+  .layer.embed  { background: var(--embed-bg);  border-color: var(--embed-border);  }
+  .layer.embed  .layer-name { color: var(--embed-color); }
+  .layer.embed  .dim { color: var(--embed-color); }
+
+  .layer.mlp    { background: #fff; }
+  .tower.user .layer.mlp { border-color: var(--user-border); }
+  .tower.user .layer.mlp .layer-name { color: var(--user-color); }
+  .tower.user .layer.mlp .dim { color: var(--user-color); background: var(--user-bg); }
+  .tower.item .layer.mlp { border-color: var(--item-border); }
+  .tower.item .layer.mlp .layer-name { color: var(--item-color); }
+  .tower.item .layer.mlp .dim { color: var(--item-color); background: var(--item-bg); }
+
+  .layer.norm   { background: var(--norm-bg);  border-color: var(--norm-border);  }
+  .layer.norm   .layer-name { color: var(--norm-color); }
+  .layer.norm   .dim { color: var(--norm-color); }
+
+  /* 子层（MLP 内部的 Linear/BN/激活） */
+  .sublayer {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    padding: 3px 8px;
+    margin-top: 4px;
+    background: rgba(0,0,0,0.025);
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* 向下箭头 */
+  .arrow {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 16px;
+    line-height: 1;
+    margin: 2px 0;
+  }
+
+  /* ===== 匹配输出区 ===== */
+  .match-section {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 40px;
+  }
+  .merge-arrows {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    color: #94a3b8;
+    font-size: 22px;
+  }
+  .merge-arrows .a { text-align: right; }
+  .merge-arrows .b { text-align: left; }
+  .match-box {
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  .layer.match {
+    background: var(--match-bg);
+    border-color: var(--match-border);
+    max-width: 560px;
+  }
+  .layer.match .layer-name { color: var(--match-color); }
+  .layer.match .dim { color: var(--match-color); }
+
+  /* ===== 维度表 ===== */
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .tables-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 36px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    font-size: 13px;
+  }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #f1f5f9; }
+  th { background: #f8fafc; font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.mono { font-family: "SF Mono", Monaco, Consolas, monospace; }
+  tr:last-child td { border-bottom: none; }
+  .col-user th { color: var(--user-color); }
+  .col-item th { color: var(--item-color); }
+
+  /* ===== 说明 ===== */
+  .notes {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 24px;
+    border-left: 4px solid var(--match-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .notes ul { padding-left: 18px; }
+  .notes li { font-size: 13.5px; margin-bottom: 8px; color: var(--text); }
+  .notes li:last-child { margin-bottom: 0; }
+  .notes code {
+    background: #f1f5f9; padding: 1px 6px; border-radius: 4px;
+    font-size: 12.5px; font-family: "SF Mono", Monaco, Consolas, monospace;
+    color: var(--match-color);
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+    margin: 18px 0 28px;
+  }
+  .legend span {
+    font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    border: 1.5px solid; font-weight: 600;
+  }
+  .lg-input  { background: var(--input-bg);  border-color: var(--input-border);  color: var(--input-color); }
+  .lg-embed  { background: var(--embed-bg);  border-color: var(--embed-border);  color: var(--embed-color); }
+  .lg-mlp    { background: #fff;             border-color: var(--user-border);   color: var(--user-color); }
+  .lg-norm   { background: var(--norm-bg);   border-color: var(--norm-border);  color: var(--norm-color); }
+  .lg-match  { background: var(--match-bg);  border-color: var(--match-border); color: var(--match-color); }
+  footer { text-align: center; margin-top: 32px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>DSSM 双塔模型架构图</h1>
+    <div class="subtitle">Deep Structured Semantic Models · 基于 torch-rechub 实现 (MovieLens-1M 配置)</div>
+    <div class="source">源码: torch_rechub/models/matching/dssm.py &nbsp;|&nbsp; 示例: examples/matching/run_ml_dssm.py</div>
+  </header>
+
+  <div class="legend">
+    <span class="lg-input">输入层</span>
+    <span class="lg-embed">Embedding 层</span>
+    <span class="lg-mlp">MLP (Linear+BN+PReLU)</span>
+    <span class="lg-norm">L2 归一化</span>
+    <span class="lg-match">相似度匹配</span>
+  </div>
+
+  <!-- ============ 双塔架构 ============ -->
+  <div class="arch">
+
+    <!-- ===== 用户塔 ===== -->
+    <div class="tower user">
+      <div class="tower-title">User Tower (用户塔)</div>
+
+      <div class="layer input">
+        <div class="layer-name"><span>输入特征 (字典)</span></div>
+        <div class="layer-desc">user_id, gender, age, occupation, zip (5 Sparse)<br>hist_movie_id (1 Sequence, mean pooling, 共享 movie_id 表)</div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="layer embed">
+        <div class="layer-name"><span>EmbeddingLayer + Flatten</span><span class="dim">→ [B, 96]</span></div>
+        <div class="layer-desc">6 个特征 × embed_dim 16 = 96 维，沿特征维拼接展平</div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="layer mlp">
+        <div class="layer-name"><span>User MLP (output_layer=False)</span><span class="dim">96 → 64</span></div>
+        <div class="layer-desc">dims=[256, 128, 64], activation='prelu', dropout=0</div>
+        <div class="sublayer"><span>Linear</span><span>96 → 256</span></div>
+        <div class="sublayer"><span>BatchNorm1d + PReLU</span><span>[B, 256]</span></div>
+        <div class="sublayer"><span>Linear</span><span>256 → 128</span></div>
+        <div class="sublayer"><span>BatchNorm1d + PReLU</span><span>[B, 128]</span></div>
+        <div class="sublayer"><span>Linear</span><span>128 → 64</span></div>
+        <div class="sublayer"><span>BatchNorm1d + PReLU</span><span>[B, 64]</span></div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="layer norm">
+        <div class="layer-name"><span>L2 Normalize (F.normalize, p=2, dim=1)</span><span class="dim">→ [B, 64]</span></div>
+        <div class="layer-desc">输出单位向量 user_embedding，便于与物品向量做余弦相似度</div>
+      </div>
+    </div>
+
+    <!-- ===== 物品塔 ===== -->
+    <div class="tower item">
+      <div class="tower-title">Item Tower (物品塔)</div>
+
+      <div class="layer input">
+        <div class="layer-name"><span>输入特征 (字典)</span></div>
+        <div class="layer-desc">movie_id, cate_id (2 Sparse 特征, embed_dim=16)</div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="layer embed">
+        <div class="layer-name"><span>EmbeddingLayer + Flatten</span><span class="dim">→ [B, 32]</span></div>
+        <div class="layer-desc">2 个特征 × embed_dim 16 = 32 维，沿特征维拼接展平</div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="layer mlp">
+        <div class="layer-name"><span>Item MLP (output_layer=False)</span><span class="dim">32 → 64</span></div>
+        <div class="layer-desc">dims=[256, 128, 64], activation='prelu', dropout=0</div>
+        <div class="sublayer"><span>Linear</span><span>32 → 256</span></div>
+        <div class="sublayer"><span>BatchNorm1d + PReLU</span><span>[B, 256]</span></div>
+        <div class="sublayer"><span>Linear</span><span>256 → 128</span></div>
+        <div class="sublayer"><span>BatchNorm1d + PReLU</span><span>[B, 128]</span></div>
+        <div class="sublayer"><span>Linear</span><span>128 → 64</span></div>
+        <div class="sublayer"><span>BatchNorm1d + PReLU</span><span>[B, 64]</span></div>
+      </div>
+      <div class="arrow">▼</div>
+
+      <div class="layer norm">
+        <div class="layer-name"><span>L2 Normalize (F.normalize, p=2, dim=1)</span><span class="dim">→ [B, 64]</span></div>
+        <div class="layer-desc">输出单位向量 item_embedding，与 user_embedding 同维</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 匹配输出 ============ -->
+  <div class="match-section">
+    <div class="merge-arrows">
+      <div class="a">user_embedding ▼</div>
+      <div>+</div>
+      <div class="b">▼ item_embedding</div>
+    </div>
+    <div class="match-box">
+      <div class="layer match">
+        <div class="layer-name"><span>点积 (Element-wise Mul → Sum over dim=1)</span><span class="dim">[B,64]·[B,64] → [B]</span></div>
+        <div class="layer-desc">torch.mul(user_emb, item_emb).sum(dim=1)；因两侧已 L2 归一化，结果即余弦相似度 ∈ [-1, 1]</div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="layer match">
+        <div class="layer-name"><span>Sigmoid 激活 → 匹配概率</span><span class="dim">→ [B]</span></div>
+        <div class="layer-desc">torch.sigmoid(y)，输出最终预测分数 ∈ (0, 1)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 维度明细表 ============ -->
+  <div class="section-title">各层维度明细</div>
+  <div class="tables-wrap">
+    <table class="col-user">
+      <thead>
+        <tr><th>用户塔 层</th><th>输出维度</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>输入 (6 特征)</td><td class="mono">字典 {B}</td></tr>
+        <tr><td>Embedding + Flatten</td><td class="mono">[B, 96]</td></tr>
+        <tr><td>Linear 1</td><td class="mono">[B, 256]</td></tr>
+        <tr><td>Linear 2</td><td class="mono">[B, 128]</td></tr>
+        <tr><td>Linear 3</td><td class="mono">[B, 64]</td></tr>
+        <tr><td>L2 Normalize</td><td class="mono">[B, 64]</td></tr>
+      </tbody>
+    </table>
+
+    <table class="col-item">
+      <thead>
+        <tr><th>物品塔 层</th><th>输出维度</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>输入 (2 特征)</td><td class="mono">字典 {B}</td></tr>
+        <tr><td>Embedding + Flatten</td><td class="mono">[B, 32]</td></tr>
+        <tr><td>Linear 1</td><td class="mono">[B, 256]</td></tr>
+        <tr><td>Linear 2</td><td class="mono">[B, 128]</td></tr>
+        <tr><td>Linear 3</td><td class="mono">[B, 64]</td></tr>
+        <tr><td>L2 Normalize</td><td class="mono">[B, 64]</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ 关键说明 ============ -->
+  <div class="notes">
+    <div class="section-title" style="margin-bottom: 12px;">关键实现说明</div>
+    <ul>
+      <li><b>B</b> 表示 batch_size；示例中 batch_size=4096。</li>
+      <li>两个塔的 <code>user_dims</code>/<code>item_dims</code> 由各特征 <code>embed_dim</code> 之和自动计算（<code>dssm.py:32-33</code>），<code>hist_movie_id</code> 通过 <code>shared_with="movie_id"</code> 复用物品侧 embedding 表。</li>
+      <li>MLP 每个 <code>Linear</code> 后接 <code>BatchNorm1d → 激活(PReLU) → Dropout</code>（<code>layers.py:281-285</code>）；因 <code>output_layer=False</code>，<b>不</b>追加末层 <code>Linear(*,1)</code>，故塔输出即 <code>dims[-1]=64</code> 维。</li>
+      <li>相似度计算为逐元素相乘后求和（<code>dssm.py:50</code>）；由于两侧已做 L2 归一化，该点积<b>等价于余弦相似度</b>。</li>
+      <li>构造函数中 <code>temperature=0.02</code> 被传入，但 <code>forward</code> 内 <code>y = y / self.temperature</code> 一行被注释（<code>dssm.py:51</code>），<b>当前温度系数未生效</b>，直接对点积结果取 <code>sigmoid</code>。</li>
+      <li>推理阶段通过 <code>model.mode="user"/"item"</code> 单独导出某一塔的 embedding（<code>dssm.py:43-46</code>），常用于离线建库 + 在线召回。</li>
+    </ul>
+  </div>
+
+  <footer>Generated from torch-rechub · DSSM (CIKM 2013) · 双塔结构示意</footer>
+</div>
+</body>
+</html>
