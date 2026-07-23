@@ -9,6 +9,7 @@ flowchart LR
         USER_DATA["用户数据<br/>用户画像、播放历史、点击、收藏、点赞、跳过<br/><b>存储：GaussDB</b>"]
         ITEM_META["歌曲标签与元数据<br/>歌曲ID、歌手、类别、语言、版权、状态<br/><b>存储：GaussDB</b>"]
         SONG_FILE["歌曲文件<br/>音频、封面等对象数据<br/><b>存储：OBS</b>"]
+        ITEM_VECTOR["歌曲向量与检索元数据<br/>item embedding、item_id、model_version、过滤字段<br/><b>存储：Milvus</b>"]
     end
 
     subgraph OFFLINE["离线场景：训练、更新、评估与发布"]
